@@ -9,9 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
     html, body {
       margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
       background: transparent !important;
@@ -19,13 +17,11 @@
       -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
     }
 
-    /* Rende trasparenti la scena A-Frame e il canvas WebGL per mostrare il video sottostante */
     a-scene, .a-canvas {
       background-color: transparent !important;
       background: transparent !important;
     }
 
-    /* Stile forzato per il video della fotocamera generato da MindAR */
     video {
       position: absolute !important;
       top: 0 !important;
@@ -133,17 +129,7 @@
 
   <script>
     const BOOK_URL = 'https://www.edizpiemme.it/libri/saggezza-e-follia-2/';
-
-    let audioUnlocked = false;
-    function unlockAudio(audio) {
-      if (!audioUnlocked && audio) {
-        audio.play().then(() => {
-          audio.pause();
-          audio.currentTime = 0;
-          audioUnlocked = true;
-        }).catch(() => {});
-      }
-    }
+    let globalAudio = null;
 
     AFRAME.registerComponent('cta-badge', {
       init: function () {
@@ -174,7 +160,6 @@
         const $ = (id) => document.getElementById(id);
         const target = $('target'), frame = $('scan-frame'), text = $('instruction-text');
         const hits = [$('hit-photo')];
-        const audioEl = $('audio-giovani');
         const btnStop = $('btn-stop-audio');
         const siteModal = $('site-modal');
         const siteIframe = $('site-iframe');
@@ -187,9 +172,6 @@
 
         let found = false, lostTimer = null;
 
-        window.addEventListener('pointerdown', () => unlockAudio(audioEl), { once: true });
-
-        // Forza la riproduzione del video della telecamera su Safari iOS
         sceneEl.addEventListener('arReady', () => {
           const video = document.querySelector('video');
           if (video) {
@@ -216,9 +198,9 @@
 
         btnStop.addEventListener('click', (e) => {
           e.stopPropagation();
-          if (audioEl) {
-            audioEl.pause();
-            audioEl.currentTime = 0;
+          if (globalAudio) {
+            globalAudio.pause();
+            globalAudio.currentTime = 0;
           }
           btnStop.style.display = 'none';
         });
@@ -249,12 +231,21 @@
           }
 
           if (ok) {
-            if (audioEl) {
-              audioEl.currentTime = 0;
-              audioEl.play().then(() => {
-                btnStop.style.display = 'block';
-              }).catch(err => console.log("Errore audio:", err));
+            // Se c'è un audio attivo, lo fermiamo prima
+            if (globalAudio) {
+              globalAudio.pause();
+              globalAudio.currentTime = 0;
             }
+
+            // Creazione nativa dell'audio nel contesto del tocco utente
+            globalAudio = new Audio('./giovani.mp3');
+            globalAudio.volume = 1.0;
+            
+            globalAudio.play().then(() => {
+              btnStop.style.display = 'block';
+            }).catch(err => {
+              console.error("Errore riproduzione audio:", err);
+            });
 
             siteIframe.src = BOOK_URL;
             siteModal.classList.add('active');
@@ -267,9 +258,6 @@
   </script>
 </head>
 <body>
-
-  <!-- Audio -->
-  <audio id="audio-giovani" src="./giovani.mp3" preload="auto" playsinline webkit-playsinline></audio>
 
   <!-- Bottone Ferma Audio -->
   <button id="btn-stop-audio">⏹ Ferma audio</button>
@@ -294,7 +282,7 @@
     </div>
   </div>
   <div id="instruction-text">Inquadra la foto per attivare la realtà aumentata</div>
-  <div id="ver">v10</div>
+  <div id="ver">v11</div>
 
   <a-scene
     ar-mazzi
