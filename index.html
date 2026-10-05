@@ -10,7 +10,7 @@
 
   <style>
     html, body {
-      margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: transparent;
+      margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
     }
@@ -44,12 +44,12 @@
       background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 20px;
     }
 
-    /* ---- Bottone Ferma Audio ---- */
+    /* ---- Bottone Ferma Audio (Sempre in cima a tutto) ---- */
     #btn-stop-audio {
       position: fixed;
       top: calc(16px + env(safe-area-inset-top, 0px));
       right: 16px;
-      z-index: 999;
+      z-index: 9999;
       background: #e63946;
       color: #ffffff;
       border: none;
@@ -57,18 +57,74 @@
       font-size: 14px;
       font-weight: bold;
       border-radius: 25px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
       cursor: pointer;
+      display: none; /* Visibile solo quando l'audio parte */
+    }
+
+    /* ---- Modal con il sito web sovrapposto ---- */
+    #site-modal {
+      position: fixed;
+      top: 60px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 8888;
+      background: #fff;
+      display: none;
+      flex-direction: column;
+      border-top-left-radius: 16px;
+      border-top-right-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+    }
+
+    #site-modal.active {
       display: flex;
+    }
+
+    #site-modal header {
+      background: #f8f9fa;
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 6px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    #site-modal iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    #btn-close-modal {
+      background: #333;
+      color: #fff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
     }
   </style>
 
   <script>
     const BOOK_URL = 'https://www.edizpiemme.it/libri/saggezza-e-follia-2/';
 
-    // Etichetta "Scopri il libro"
+    // Sblocco globale dell'audio per iOS e Android al primo tocco
+    let audioUnlocked = false;
+    function unlockAudio(audio) {
+      if (!audioUnlocked && audio) {
+        audio.play().then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          audioUnlocked = true;
+        }).catch(() => {});
+      }
+    }
+
     AFRAME.registerComponent('cta-badge', {
       init: function () {
         const c = document.createElement('canvas');
@@ -100,6 +156,9 @@
         const hits = [$('hit-photo')];
         const audioEl = $('audio-giovani');
         const btnStop = $('btn-stop-audio');
+        const siteModal = $('site-modal');
+        const siteIframe = $('site-iframe');
+        const btnCloseModal = $('btn-close-modal');
 
         const LOST_DELAY = 500;
         const SNAP_PX    = 220;
@@ -107,6 +166,9 @@
         const TXT_FOUND  = "Tocca la foto per ascoltare l'audio e scoprire il libro";
 
         let found = false, lostTimer = null;
+
+        // Inizializza lo sblocco dell'audio al primo tocco sullo schermo
+        window.addEventListener('pointerdown', () => unlockAudio(audioEl), { once: true });
 
         target.addEventListener('targetFound', () => {
           found = true; clearTimeout(lostTimer);
@@ -123,21 +185,28 @@
           }, LOST_DELAY);
         });
 
-        // Gestione stop audio
+        // Gestione spegnimento audio
         btnStop.addEventListener('click', (e) => {
           e.stopPropagation();
           if (audioEl) {
             audioEl.pause();
             audioEl.currentTime = 0;
           }
+          btnStop.style.display = 'none';
         });
 
-        // Intercettazione del tocco
+        // Chiudi la modale del sito web
+        btnCloseModal.addEventListener('click', () => {
+          siteModal.classList.remove('active');
+          siteIframe.src = '';
+        });
+
+        // Tocco sulla foto in AR
         const handleTap = (e) => {
           if (!found) return;
 
-          // Se si clicca sul pulsante di stop, interrompe l'esecuzione del tap generale
-          if (e.target === btnStop || btnStop.contains(e.target)) return;
+          // ignora se clicchi sul pulsante audio o sulla finestra del sito
+          if (e.target === btnStop || btnStop.contains(e.target) || siteModal.contains(e.target)) return;
 
           const camera = sceneEl.camera;
           if (!camera) return;
@@ -146,20 +215,26 @@
           const rc = new THREE.Raycaster();
           rc.setFromCamera(ndc, camera);
           let ok = rc.intersectObjects(hits.map(el => el.object3D), true).length > 0;
+
           if (!ok) {
             const v = new THREE.Vector3();
             hits[0].object3D.getWorldPosition(v); v.project(camera);
             const sx = (v.x + 1) / 2 * window.innerWidth, sy = (1 - v.y) / 2 * window.innerHeight;
             ok = Math.hypot(sx - x, sy - y) <= SNAP_PX;
           }
+
           if (ok) {
-            // 1. Avvia l'audio
+            // 1. Avvia la riproduzione dell'audio
             if (audioEl) {
               audioEl.currentTime = 0;
-              audioEl.play().catch(err => console.log("Errore riproduzione audio:", err));
+              audioEl.play().then(() => {
+                btnStop.style.display = 'block'; // Mostra il bottone "Ferma Audio"
+              }).catch(err => console.log("Errore audio:", err));
             }
-            // 2. Apre il sito in una nuova scheda senza chiudere l'esperienza AR
-            window.open(BOOK_URL, '_blank');
+
+            // 2. Apri il sito all'interno del pannello sovrapposto
+            siteIframe.src = BOOK_URL;
+            siteModal.classList.add('active');
           }
         };
 
@@ -170,13 +245,22 @@
 </head>
 <body>
 
-  <!-- Elemento Audio con attributi di compatibilità iOS/Android -->
+  <!-- Audio -->
   <audio id="audio-giovani" src="./giovani.mp3" preload="auto" playsinline></audio>
 
-  <!-- Bottone Ferma Audio Sempre Visibile -->
+  <!-- Bottone Ferma Audio Sempre Visibile sopra la finestra -->
   <button id="btn-stop-audio">⏹ Ferma audio</button>
 
-  <!-- Mirino di scansione -->
+  <!-- Finestra del sito sovrapposta (In-App Browser) -->
+  <div id="site-modal">
+    <header>
+      <span style="font-size:12px; color:#555; font-weight:bold;">Sito Piemme</span>
+      <button id="btn-close-modal">✕ Chiudi sito</button>
+    </header>
+    <iframe id="site-iframe" src=""></iframe>
+  </div>
+
+  <!-- Mirino -->
   <div id="scanner-overlay">
     <div class="scan-frame" id="scan-frame">
       <div class="corner top-left"></div>
@@ -187,7 +271,7 @@
     </div>
   </div>
   <div id="instruction-text">Inquadra la foto per attivare la realtà aumentata</div>
-  <div id="ver">v7</div>
+  <div id="ver">v8</div>
 
   <a-scene
     ar-mazzi
