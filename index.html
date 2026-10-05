@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Realtà Aumentata - Saggezza e follia</title>
 
+  <!-- Librerie base WebAR -->
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
@@ -17,11 +18,13 @@
       -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
     }
 
+    /* Rende il canvas 3D trasparente per mostrare la fotocamera sotto */
     a-scene, .a-canvas {
       background-color: transparent !important;
       background: transparent !important;
     }
 
+    /* Posizionamento forzato del video della fotocamera sotto tutti gli elementi */
     video {
       position: absolute !important;
       top: 0 !important;
@@ -32,7 +35,7 @@
       z-index: -2 !important;
     }
 
-    /* ---- Mirino di scansione ---- */
+    /* ---- Overlay di scansione ---- */
     #scanner-overlay {
       position: fixed; inset: 0; z-index: 10; pointer-events: none;
       display: flex; justify-content: center; align-items: center;
@@ -50,8 +53,10 @@
     @keyframes scanAnim { 0% { top: 4%; } 100% { top: 96%; } }
     .hidden { display: none !important; }
 
-    #ver { position: fixed; left: 8px; bottom: calc(4px + env(safe-area-inset-bottom, 0px)); z-index: 20;
-           font-size: 10px; color: #fff; opacity: .45; pointer-events: none; }
+    #ver {
+      position: fixed; left: 8px; bottom: calc(4px + env(safe-area-inset-bottom, 0px)); z-index: 20;
+      font-size: 10px; color: #fff; opacity: .45; pointer-events: none;
+    }
 
     #instruction-text {
       position: fixed; bottom: calc(26px + env(safe-area-inset-bottom, 0px)); left: 50%;
@@ -82,10 +87,7 @@
     /* ---- Modal del sito web ---- */
     #site-modal {
       position: fixed;
-      top: 60px;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      top: 60px; left: 0; right: 0; bottom: 0;
       z-index: 8888;
       background: #fff;
       display: none;
@@ -95,41 +97,22 @@
       overflow: hidden;
       box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
     }
-
-    #site-modal.active {
-      display: flex;
-    }
-
+    #site-modal.active { display: flex; }
     #site-modal header {
-      background: #f8f9fa;
-      padding: 10px 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      background: #f8f9fa; padding: 10px 16px;
+      display: flex; justify-content: space-between; align-items: center;
       border-bottom: 1px solid #ddd;
     }
-
-    #site-modal iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
-
+    #site-modal iframe { width: 100%; height: 100%; border: none; }
     #btn-close-modal {
-      background: #333;
-      color: #fff;
-      border: none;
-      padding: 6px 14px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: bold;
+      background: #333; color: #fff; border: none;
+      padding: 6px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;
       cursor: pointer;
     }
   </style>
 
   <script>
     const BOOK_URL = 'https://www.edizpiemme.it/libri/saggezza-e-follia-2/';
-    let globalAudio = null;
 
     AFRAME.registerComponent('cta-badge', {
       init: function () {
@@ -160,6 +143,7 @@
         const $ = (id) => document.getElementById(id);
         const target = $('target'), frame = $('scan-frame'), text = $('instruction-text');
         const hits = [$('hit-photo')];
+        const audioEl = $('audio-giovani');
         const btnStop = $('btn-stop-audio');
         const siteModal = $('site-modal');
         const siteIframe = $('site-iframe');
@@ -171,15 +155,6 @@
         const TXT_FOUND  = "Tocca la foto per ascoltare l'audio e scoprire il libro";
 
         let found = false, lostTimer = null;
-
-        sceneEl.addEventListener('arReady', () => {
-          const video = document.querySelector('video');
-          if (video) {
-            video.setAttribute('playsinline', '');
-            video.setAttribute('webkit-playsinline', '');
-            video.play().catch(err => console.log('Video play error:', err));
-          }
-        });
 
         target.addEventListener('targetFound', () => {
           found = true; clearTimeout(lostTimer);
@@ -198,9 +173,9 @@
 
         btnStop.addEventListener('click', (e) => {
           e.stopPropagation();
-          if (globalAudio) {
-            globalAudio.pause();
-            globalAudio.currentTime = 0;
+          if (audioEl) {
+            audioEl.pause();
+            audioEl.currentTime = 0;
           }
           btnStop.style.display = 'none';
         });
@@ -212,7 +187,6 @@
 
         const handleTap = (e) => {
           if (!found) return;
-
           if (e.target === btnStop || btnStop.contains(e.target) || siteModal.contains(e.target)) return;
 
           const camera = sceneEl.camera;
@@ -231,19 +205,12 @@
           }
 
           if (ok) {
-            if (globalAudio) {
-              globalAudio.pause();
-              globalAudio.currentTime = 0;
+            if (audioEl) {
+              audioEl.currentTime = 0;
+              audioEl.play().then(() => {
+                btnStop.style.display = 'block';
+              }).catch(err => console.log("Errore riproduzione audio:", err));
             }
-
-            globalAudio = new Audio('./giovani.mp3');
-            globalAudio.volume = 1.0;
-            
-            globalAudio.play().then(() => {
-              btnStop.style.display = 'block';
-            }).catch(err => {
-              console.error("Errore riproduzione audio:", err);
-            });
 
             siteIframe.src = BOOK_URL;
             siteModal.classList.add('active');
@@ -256,6 +223,9 @@
   </script>
 </head>
 <body>
+
+  <!-- Audio nativo ripristinato ed eseguibile in sicurezza -->
+  <audio id="audio-giovani" src="./giovani.mp3" preload="auto" playsinline webkit-playsinline></audio>
 
   <!-- Bottone Ferma Audio -->
   <button id="btn-stop-audio">⏹ Ferma audio</button>
@@ -279,8 +249,8 @@
       <div class="scan-line"></div>
     </div>
   </div>
-  <div id="instruction-text">Inquadra la foto per attivare la realtà augmented</div>
-  <div id="ver">v12</div>
+  <div id="instruction-text">Inquadra la foto per attivare la realtà aumentata</div>
+  <div id="ver">v13</div>
 
   <a-scene
     ar-mazzi
