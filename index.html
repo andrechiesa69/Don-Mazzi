@@ -9,6 +9,9 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
+    * {
+      box-sizing: border-box;
+    }
     html, body {
       margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
       background: transparent !important;
@@ -16,9 +19,21 @@
       -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
     }
 
-    /* Assicura che il canvas A-Frame e il feed della fotocamera siano trasparenti e visibili */
-    .a-canvas {
+    /* Rende trasparenti la scena A-Frame e il canvas WebGL per mostrare il video sottostante */
+    a-scene, .a-canvas {
       background-color: transparent !important;
+      background: transparent !important;
+    }
+
+    /* Stile forzato per il video della fotocamera generato da MindAR */
+    video {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+      z-index: -2 !important;
     }
 
     /* ---- Mirino di scansione ---- */
@@ -68,7 +83,7 @@
       display: none;
     }
 
-    /* ---- Finestra Modal del sito web ---- */
+    /* ---- Modal del sito web ---- */
     #site-modal {
       position: fixed;
       top: 60px;
@@ -174,6 +189,16 @@
 
         window.addEventListener('pointerdown', () => unlockAudio(audioEl), { once: true });
 
+        // Forza la riproduzione del video della telecamera su Safari iOS
+        sceneEl.addEventListener('arReady', () => {
+          const video = document.querySelector('video');
+          if (video) {
+            video.setAttribute('playsinline', '');
+            video.setAttribute('webkit-playsinline', '');
+            video.play().catch(err => console.log('Video play error:', err));
+          }
+        });
+
         target.addEventListener('targetFound', () => {
           found = true; clearTimeout(lostTimer);
           frame.classList.add('hidden');
@@ -244,7 +269,7 @@
 <body>
 
   <!-- Audio -->
-  <audio id="audio-giovani" src="./giovani.mp3" preload="auto" playsinline></audio>
+  <audio id="audio-giovani" src="./giovani.mp3" preload="auto" playsinline webkit-playsinline></audio>
 
   <!-- Bottone Ferma Audio -->
   <button id="btn-stop-audio">⏹ Ferma audio</button>
@@ -269,7 +294,7 @@
     </div>
   </div>
   <div id="instruction-text">Inquadra la foto per attivare la realtà aumentata</div>
-  <div id="ver">v9</div>
+  <div id="ver">v10</div>
 
   <a-scene
     ar-mazzi
