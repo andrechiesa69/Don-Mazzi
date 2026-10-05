@@ -231,13 +231,11 @@
           }
 
           if (ok) {
-            // Se c'è un audio attivo, lo fermiamo prima
             if (globalAudio) {
               globalAudio.pause();
               globalAudio.currentTime = 0;
             }
 
-            // Creazione nativa dell'audio nel contesto del tocco utente
             globalAudio = new Audio('./giovani.mp3');
             globalAudio.volume = 1.0;
             
@@ -281,8 +279,8 @@
       <div class="scan-line"></div>
     </div>
   </div>
-  <div id="instruction-text">Inquadra la foto per attivare la realtà aumentata</div>
-  <div id="ver">v11</div>
+  <div id="instruction-text">Inquadra la foto per attivare la realtà augmented</div>
+  <div id="ver">v12</div>
 
   <a-scene
     ar-mazzi
