@@ -15,7 +15,7 @@
       -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
     }
 
-    /* ---- Mirino di scansione con angoli bianchi ---- */
+    /* ---- Mirino di scansione ---- */
     #scanner-overlay {
       position: fixed; inset: 0; z-index: 10; pointer-events: none;
       display: flex; justify-content: center; align-items: center;
@@ -49,34 +49,26 @@
       position: fixed;
       top: calc(16px + env(safe-area-inset-top, 0px));
       right: 16px;
-      z-index: 30;
+      z-index: 999;
       background: #e63946;
       color: #ffffff;
       border: none;
-      padding: 10px 18px;
+      padding: 12px 20px;
       font-size: 14px;
       font-weight: bold;
       border-radius: 25px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
       cursor: pointer;
-      transition: transform 0.4s ease, opacity 0.4s ease;
       display: flex;
       align-items: center;
       gap: 6px;
-    }
-
-    /* Stato in cui il bottone "si sposta" ed esce dallo schermo */
-    #btn-stop-audio.moved-out {
-      transform: translateX(150px);
-      opacity: 0;
-      pointer-events: none;
     }
   </style>
 
   <script>
     const BOOK_URL = 'https://www.edizpiemme.it/libri/saggezza-e-follia-2/';
 
-    // Etichetta "Scopri il libro" disegnata con un canvas
+    // Etichetta "Scopri il libro"
     AFRAME.registerComponent('cta-badge', {
       init: function () {
         const c = document.createElement('canvas');
@@ -112,7 +104,7 @@
         const LOST_DELAY = 500;
         const SNAP_PX    = 220;
         const TXT_SCAN   = "Inquadra la foto per attivare la realtà aumentata";
-        const TXT_FOUND  = "Tocca la foto per scoprire il libro";
+        const TXT_FOUND  = "Tocca la foto per ascoltare l'audio e scoprire il libro";
 
         let found = false, lostTimer = null;
 
@@ -131,21 +123,20 @@
           }, LOST_DELAY);
         });
 
-        // Gestione bottone ferma audio
-        btnStop.addEventListener('click', () => {
+        // Gestione stop audio
+        btnStop.addEventListener('click', (e) => {
+          e.stopPropagation();
           if (audioEl) {
             audioEl.pause();
             audioEl.currentTime = 0;
           }
-          // Sposta il bottone fuori dallo schermo
-          btnStop.classList.add('moved-out');
         });
 
-        // Tocco sulla realtà aumentata: raycast + "calamita"
+        // Intercettazione del tocco
         const handleTap = (e) => {
           if (!found) return;
 
-          // Se si clicca direttamente sul bottone ferma audio, non aprire il link
+          // Se si clicca sul pulsante di stop, interrompe l'esecuzione del tap generale
           if (e.target === btnStop || btnStop.contains(e.target)) return;
 
           const camera = sceneEl.camera;
@@ -162,15 +153,13 @@
             ok = Math.hypot(sx - x, sy - y) <= SNAP_PX;
           }
           if (ok) {
-            // Avvia la riproduzione dell'audio se non stava già suonando
+            // 1. Avvia l'audio
             if (audioEl) {
-              audioEl.play().catch(err => console.log("Audio autoplay prevented:", err));
-              // Riporta il bottone visibile se era stato precedentemente spostato
-              btnStop.classList.remove('moved-out');
+              audioEl.currentTime = 0;
+              audioEl.play().catch(err => console.log("Errore riproduzione audio:", err));
             }
-            
-            // Reindirizza al sito del libro
-            window.location.href = BOOK_URL;
+            // 2. Apre il sito in una nuova scheda senza chiudere l'esperienza AR
+            window.open(BOOK_URL, '_blank');
           }
         };
 
@@ -181,10 +170,10 @@
 </head>
 <body>
 
-  <!-- Elemento Audio -->
-  <audio id="audio-giovani" src="./giovani.mp3" preload="auto"></audio>
+  <!-- Elemento Audio con attributi di compatibilità iOS/Android -->
+  <audio id="audio-giovani" src="./giovani.mp3" preload="auto" playsinline></audio>
 
-  <!-- Bottone Ferma Audio -->
+  <!-- Bottone Ferma Audio Sempre Visibile -->
   <button id="btn-stop-audio">⏹ Ferma audio</button>
 
   <!-- Mirino di scansione -->
@@ -198,7 +187,7 @@
     </div>
   </div>
   <div id="instruction-text">Inquadra la foto per attivare la realtà aumentata</div>
-  <div id="ver">v6</div>
+  <div id="ver">v7</div>
 
   <a-scene
     ar-mazzi
@@ -214,22 +203,18 @@
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <!-- Target: foto 3024x4032 -> larghezza 1, altezza 1.333 -->
     <a-entity id="target" mindar-image-target="targetIndex: 0">
 
-      <!-- Foto in realtà aumentata (fluttua sopra la foto stampata) -->
       <a-plane width="1" height="1.3333" position="0 0 0.06"
                material="src: #img-mazzi; transparent: true; alphaTest: 0.02; shader: flat"
                animation="property: position; to: 0 0 0.16; dir: alternate; dur: 1600; easing: easeInOutSine; loop: true">
       </a-plane>
 
-      <!-- Etichetta "Scopri il libro" -->
       <a-plane cta-badge width="0.72" height="0.18" position="0 -0.5 0.22"
                material="shader: flat; transparent: true"
                animation="property: scale; from: 1 1 1; to: 1.07 1.07 1.07; dir: alternate; dur: 900; easing: easeInOutSine; loop: true">
       </a-plane>
 
-      <!-- Area di tocco invisibile, più grande della foto -->
       <a-plane id="hit-photo" position="0 0 0.3" width="1.2" height="1.55"
                material="transparent: true; opacity: 0; side: double">
       </a-plane>
